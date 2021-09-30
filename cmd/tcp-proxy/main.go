@@ -6,8 +6,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
+
+	"github.com/eirture/tcp-proxy/pkg/build"
 )
 
 var (
@@ -50,9 +53,17 @@ func copyWithCloser(closer chan struct{}, dst io.Writer, src io.Reader) {
 }
 
 func main() {
-	flag.Parse()
-	args := flag.Args()
 
+	versionFlag := flag.Bool("version", false, "Print versions.")
+
+	flag.Parse()
+
+	if *versionFlag {
+		build.PrintVersion()
+		os.Exit(0)
+	}
+
+	args := flag.Args()
 	if len(args) < 2 {
 		log.Fatalf("accept 2 arg(s), received %d", len(args))
 	}
