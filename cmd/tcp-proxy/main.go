@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/eirture/tcp-proxy/pkg/build"
+	"github.com/eirture/tcp-proxy/pkg/log"
 )
 
 var (
@@ -18,23 +18,23 @@ var (
 )
 
 func listen(localAddr, remoteAddr string) (err error) {
-	log.Printf("Forwarding from %s -> %s\n", localAddr, remoteAddr)
+	log.Infof("Forwarding from %s -> %s\n", localAddr, remoteAddr)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		panic(err)
 	}
 	for {
 		conn, err := listener.Accept()
-		log.Println("New connection", conn.RemoteAddr())
+		log.Infoln("New connection", conn.RemoteAddr())
 		if err != nil {
-			log.Println("error accepting connection", err)
+			log.Errorln("error accepting connection", err)
 			continue
 		}
 		go func() {
 			defer conn.Close()
 			conn2, err := net.Dial("tcp", remoteAddr)
 			if err != nil {
-				log.Println("error dialing remote addr", err)
+				log.Errorln("error dialing remote addr", err)
 				return
 			}
 			defer conn2.Close()
@@ -42,7 +42,7 @@ func listen(localAddr, remoteAddr string) (err error) {
 			go copyWithCloser(closer, conn2, conn)
 			go copyWithCloser(closer, conn, conn2)
 			<-closer
-			log.Println("Connection complete", conn.RemoteAddr())
+			log.Infoln("Connection complete", conn.RemoteAddr())
 		}()
 	}
 }
@@ -65,7 +65,7 @@ func main() {
 
 	args := flag.Args()
 	if len(args) < 2 {
-		log.Fatalf("accept 2 arg(s), received %d", len(args))
+		log.Errorf("accept 2 arg(s), received %d", len(args))
 	}
 
 	remote := args[0]
@@ -75,7 +75,7 @@ func main() {
 	for _, port := range ports {
 		ps := strings.Split(port, ":")
 		if len(ps) > 2 {
-			log.Fatalf("invalid port %s", port)
+			log.Errorf("invalid port %s", port)
 		}
 		if len(ps) == 1 {
 			ps = append(ps, ps[0])
@@ -87,7 +87,7 @@ func main() {
 				fmt.Sprintf("%s:%s", *address, ps[0]),
 				fmt.Sprintf("%s:%s", remote, ps[1]),
 			); err != nil {
-				log.Fatal(err)
+				log.Error(err)
 			}
 		}()
 	}
