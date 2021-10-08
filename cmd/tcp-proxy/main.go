@@ -17,6 +17,16 @@ var (
 	address = flag.String("address", "127.0.0.1", "Addresses to listen on.")
 )
 
+const (
+	usage = `tcp-proxy is a tcp proxy tool
+
+Usage:
+  tcp-proxy [options] REMOTE_IP [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT:]REMOTE_PORT_N]
+
+Options:
+`
+)
+
 func listen(localAddr, remoteAddr string) (err error) {
 	log.Infof("Forwarding from %s -> %s\n", localAddr, remoteAddr)
 	listener, err := net.Listen("tcp", localAddr)
@@ -53,9 +63,12 @@ func copyWithCloser(closer chan struct{}, dst io.Writer, src io.Reader) {
 }
 
 func main() {
-
 	versionFlag := flag.Bool("version", false, "Print versions.")
+	flag.Usage = func() {
+		fmt.Fprint(os.Stdout, usage)
 
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	if *versionFlag {
