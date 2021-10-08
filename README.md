@@ -1,6 +1,6 @@
 # tcp-proxy
 
-A tcp proxy tool.
+A TCP proxy command line tool.
 
 ## Install
 
