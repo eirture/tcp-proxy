@@ -8,6 +8,8 @@ A TCP proxy command line tool.
 $ go get github.com/eirture/tcp-proxy/cmd/tcp-proxy
 ```
 
+You can also download binary executor from [release page](https://github.com/eirture/tcp-proxy/releases).
+
 ## Usage
 
 Print the help:
