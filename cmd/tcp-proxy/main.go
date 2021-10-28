@@ -5,16 +5,19 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/eirture/tcp-proxy/pkg/build"
 	"github.com/eirture/tcp-proxy/pkg/log"
+	"golang.org/x/net/proxy"
 )
 
 var (
-	address = flag.String("address", "127.0.0.1", "Addresses to listen on.")
+	address   = flag.String("address", "127.0.0.1", "Addresses to listen on.")
+	proxyAddr = flag.String("proxy", "", "Proxy address (or read from environment variable ALL_PROXY/all_proxy).")
 )
 
 const (
@@ -42,7 +45,21 @@ func listen(localAddr, remoteAddr string) (err error) {
 		}
 		go func() {
 			defer conn.Close()
-			conn2, err := net.Dial("tcp", remoteAddr)
+			var dialer proxy.Dialer
+
+			if *proxyAddr == "" {
+				dialer = proxy.FromEnvironment()
+			} else {
+				proxyUrl, err := url.Parse(*proxyAddr)
+				if err != nil {
+					log.Errorf("Invalid proxy address. err: %v\n", err)
+				}
+				dialer, err = proxy.FromURL(proxyUrl, proxy.Direct)
+				if err != nil {
+					log.Errorf("error dialing from proxy. %v\n")
+				}
+			}
+			conn2, err := dialer.Dial("tcp", remoteAddr)
 			if err != nil {
 				log.Errorln("error dialing remote addr", err)
 				return
