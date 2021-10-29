@@ -16,16 +16,14 @@ Print the help:
 
 ```sh
 $ tcp-proxy -h
-tcp-proxy is a tcp proxy tool
-
 Usage:
-  tcp-proxy [options] REMOTE_IP [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT:]REMOTE_PORT_N]
+  tcp-proxy REMOTE_IP [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT:]REMOTE_PORT_N] [flags]
 
-Options:
-  -address string
-    	Addresses to listen on. (default "127.0.0.1")
-  -version
-    	Print versions.
+Flags:
+      --address string   Addresses to listen on. (default "127.0.0.1")
+  -h, --help             help for tcp-proxy
+  -x, --proxy string     Use the specified proxy (format: [protocol://]host[:port]).
+  -v, --version          Print the version information.
 ```
 
 This command will proxy the `192.168.1.2:80` on `localhost:80`
