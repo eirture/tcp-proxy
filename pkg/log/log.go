@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	errLogger = log.New(os.Stderr, "", log.LstdFlags)
+	errLogger = log.New(os.Stderr, "", 0)
 	outLogger = log.New(os.Stdout, "", log.LstdFlags)
 
 	level = INFO

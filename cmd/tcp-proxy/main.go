@@ -1,36 +1,20 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"net"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/eirture/tcp-proxy/pkg/build"
 	"github.com/eirture/tcp-proxy/pkg/log"
+	"github.com/spf13/cobra"
 	"golang.org/x/net/proxy"
 )
 
-var (
-	address   = flag.String("address", "127.0.0.1", "Addresses to listen on.")
-	proxyAddr = flag.String("proxy", "", "Proxy address (or read from environment variable ALL_PROXY/all_proxy).")
-)
-
-const (
-	usage = `tcp-proxy is a tcp proxy tool
-
-Usage:
-  tcp-proxy [options] REMOTE_IP [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT:]REMOTE_PORT_N]
-
-Options:
-`
-)
-
-func listen(localAddr, remoteAddr string) (err error) {
+func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 	log.Infof("Forwarding from %s -> %s\n", localAddr, remoteAddr)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
@@ -47,10 +31,10 @@ func listen(localAddr, remoteAddr string) (err error) {
 			defer conn.Close()
 			var dialer proxy.Dialer
 
-			if *proxyAddr == "" {
+			if proxyAddr == "" {
 				dialer = proxy.FromEnvironment()
 			} else {
-				proxyUrl, err := url.Parse(*proxyAddr)
+				proxyUrl, err := url.Parse(proxyAddr)
 				if err != nil {
 					log.Errorf("Invalid proxy address. err: %v\n", err)
 				}
@@ -79,23 +63,39 @@ func copyWithCloser(closer chan struct{}, dst io.Writer, src io.Reader) {
 	closer <- struct{}{} // connection is closed, send signal to stop proxy
 }
 
-func main() {
-	versionFlag := flag.Bool("version", false, "Print versions.")
-	flag.Usage = func() {
-		fmt.Fprint(os.Stdout, usage)
+type RootOptions struct {
+	address string
+	proxy   string
 
-		flag.PrintDefaults()
+	version bool
+}
+
+func NewRootCmd() *cobra.Command {
+	ops := RootOptions{}
+
+	cmd := &cobra.Command{
+		Use:           "tcp-proxy REMOTE_IP [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT:]REMOTE_PORT_N]",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE:          ops.Run,
 	}
-	flag.Parse()
 
-	if *versionFlag {
+	cmd.Flags().StringVar(&ops.address, "address", "127.0.0.1", "Addresses to listen on.")
+	cmd.Flags().StringVarP(&ops.proxy, "proxy", "x", "", "Use the specified proxy (format: [protocol://]host[:port]).")
+	cmd.Flags().BoolVarP(&ops.version, "version", "v", false, "Print the version information.")
+
+	return cmd
+}
+
+func (o *RootOptions) Run(cmd *cobra.Command, args []string) (err error) {
+
+	if o.version {
 		build.PrintVersion()
-		os.Exit(0)
+		return nil
 	}
 
-	args := flag.Args()
 	if len(args) < 2 {
-		log.Errorf("accept 2 arg(s), received %d", len(args))
+		return fmt.Errorf("requires at least 2 arg(s), only received %d", len(args))
 	}
 
 	remote := args[0]
@@ -114,8 +114,9 @@ func main() {
 		go func() {
 			defer wg.Done()
 			if err := listen(
-				fmt.Sprintf("%s:%s", *address, ps[0]),
+				fmt.Sprintf("%s:%s", o.address, ps[0]),
 				fmt.Sprintf("%s:%s", remote, ps[1]),
+				o.proxy,
 			); err != nil {
 				log.Error(err)
 			}
@@ -123,4 +124,14 @@ func main() {
 	}
 
 	wg.Wait()
+
+	return
+}
+
+func main() {
+	rootCmd := NewRootCmd()
+	err := rootCmd.Execute()
+	if err != nil {
+		log.Errorln(err)
+	}
 }
