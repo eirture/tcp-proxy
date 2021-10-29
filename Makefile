@@ -11,6 +11,12 @@ build:
 	@mkdir -p bin
 	go build -ldflags "${GO_LDFLAGS}" -v -o bin/ ./cmd/tcp-proxy
 
+.PHONY: pkg
+pkg: clean
+	make build GOOS=darwin && cd bin/ && zip tcp-proxy-${KODO_VERSION}-darwin-amd64.zip tcp-proxy
+	cd ../
+	make build GOOS=linux && cd bin/ && tar zcf tcp-proxy-${KODO_VERSION}-linux-amd64.tgz tcp-proxy
+
 .PHONY: clean
 clean:
 	@rm -rf bin/*
