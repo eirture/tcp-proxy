@@ -43,3 +43,7 @@ with multiple ports
 ```sh
 $ tcp-proxy 192.168.1.2 8080:80 8443:443
 ```
+
+# License
+
+tcp-proxy is released under the Apache 2.0 license. See [LICENSE.txt](/LICENSE.txt)
