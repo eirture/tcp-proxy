@@ -8,11 +8,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/docker/go-units"
 	"github.com/eirture/tcp-proxy/pkg/build"
 	"github.com/eirture/tcp-proxy/pkg/log"
+	"github.com/juju/ratelimit"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/proxy"
 )
+
+var limitBucket *ratelimit.Bucket
 
 func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 	log.Infof("Forwarding from %s -> %s\n", localAddr, remoteAddr)
@@ -50,8 +54,13 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			}
 			defer conn2.Close()
 			closer := make(chan struct{}, 2)
-			go copyWithCloser(closer, conn2, conn)
-			go copyWithCloser(closer, conn, conn2)
+			var r1, r2 io.Reader = conn, conn2
+			if limitBucket != nil {
+				r1 = ratelimit.Reader(r1, limitBucket)
+				r2 = ratelimit.Reader(r2, limitBucket)
+			}
+			go copyWithCloser(closer, conn2, r1)
+			go copyWithCloser(closer, conn, r2)
 			<-closer
 			log.Infoln("Connection complete", conn.RemoteAddr())
 		}()
@@ -67,7 +76,8 @@ type RootOptions struct {
 	address string
 	proxy   string
 
-	version bool
+	version   bool
+	rateLimit string
 }
 
 func NewRootCmd() *cobra.Command {
@@ -83,6 +93,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&ops.address, "address", "127.0.0.1", "Addresses to listen on.")
 	cmd.Flags().StringVarP(&ops.proxy, "proxy", "x", "", "Use the specified proxy (format: [protocol://]host[:port]).")
 	cmd.Flags().BoolVarP(&ops.version, "version", "v", false, "Print the version information.")
+	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "")
 
 	return cmd
 }
@@ -96,6 +107,10 @@ func (o *RootOptions) Run(cmd *cobra.Command, args []string) (err error) {
 
 	if len(args) < 2 {
 		return fmt.Errorf("requires at least 2 arg(s), only received %d", len(args))
+	}
+
+	if bps, err := units.FromHumanSize(o.rateLimit); err == nil {
+		limitBucket = ratelimit.NewBucketWithRate(float64(bps), bps)
 	}
 
 	remote := args[0]
