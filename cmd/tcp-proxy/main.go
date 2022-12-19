@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -17,6 +18,9 @@ import (
 )
 
 var limitBucket *ratelimit.Bucket
+var (
+	logBytesAsRawNumber bool
+)
 
 func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 	log.Infof("Forwarding from %s -> %s\n", localAddr, remoteAddr)
@@ -32,6 +36,16 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			continue
 		}
 		go func() {
+			cch := make(chan struct{}, 2)
+			rch := make(chan int64, 1) // receive
+			sch := make(chan int64, 1) // send
+			defer close(cch)
+			defer close(rch)
+			defer close(sch)
+			defer func() {
+				log.Infof("Connection done %s: ↑%s ↓%s", conn.RemoteAddr(), formatBytes(<-sch), formatBytes(<-rch))
+			}()
+
 			defer conn.Close()
 			var dialer proxy.Dialer
 
@@ -44,7 +58,7 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 				}
 				dialer, err = proxy.FromURL(proxyUrl, proxy.Direct)
 				if err != nil {
-					log.Errorf("error dialing from proxy. %v\n")
+					log.Errorf("error dialing from proxy. %v\n", err)
 				}
 			}
 			conn2, err := dialer.Dial("tcp", remoteAddr)
@@ -53,23 +67,50 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 				return
 			}
 			defer conn2.Close()
-			closer := make(chan struct{}, 2)
-			var r1, r2 io.Reader = conn, conn2
+			var laReader, raReader io.Reader = conn, conn2
+			var laWriter, raWriter io.Writer = conn, conn2
 			if limitBucket != nil {
-				r1 = ratelimit.Reader(r1, limitBucket)
-				r2 = ratelimit.Reader(r2, limitBucket)
+				laReader = ratelimit.Reader(laReader, limitBucket)
+				raReader = ratelimit.Reader(raReader, limitBucket)
 			}
-			go copyWithCloser(closer, conn2, r1)
-			go copyWithCloser(closer, conn, r2)
-			<-closer
-			log.Infoln("Connection complete", conn.RemoteAddr())
+			go func() {
+				rn, _ := io.Copy(laWriter, raReader)
+				cch <- struct{}{}
+				rch <- rn
+			}()
+			go func() {
+				wn, _ := io.Copy(raWriter, laReader)
+				cch <- struct{}{}
+				sch <- wn
+			}()
+			<-cch
 		}()
 	}
 }
 
-func copyWithCloser(closer chan struct{}, dst io.Writer, src io.Reader) {
-	_, _ = io.Copy(dst, src)
-	closer <- struct{}{} // connection is closed, send signal to stop proxy
+var (
+	sizeUnits = []string{"B", "KB", "MB", "GB", "TB", "PB"}
+)
+
+func formatBytes(n int64) string {
+	if logBytesAsRawNumber {
+		return strconv.FormatInt(n, 10)
+	}
+	return humanSize(n)
+}
+
+func humanSize(n int64) string {
+	var decimal int64
+	var i int
+	for n > 1024 && i < len(sizeUnits) {
+		decimal = n % 1024
+		n /= 1024
+		i++
+	}
+	if decimal > 100 {
+		return fmt.Sprintf("%d.%d%s", n, decimal/10, sizeUnits[i])
+	}
+	return fmt.Sprintf("%d%s", n, sizeUnits[i])
 }
 
 type RootOptions struct {
@@ -94,6 +135,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&ops.proxy, "proxy", "x", "", "Use the specified proxy (format: [protocol://]host[:port]).")
 	cmd.Flags().BoolVarP(&ops.version, "version", "v", false, "Print the version information.")
 	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "")
+	cmd.Flags().BoolVar(&logBytesAsRawNumber, "raw-bytes", false, "log bytes as raw number")
 
 	return cmd
 }
