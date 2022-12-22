@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,11 @@ import (
 var limitBucket *ratelimit.Bucket
 var (
 	logBytesAsRawNumber bool
+)
+
+var (
+	teeSentWriter     io.WriteCloser
+	teeReceivedWriter io.WriteCloser
 )
 
 func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
@@ -73,6 +79,13 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 				laReader = ratelimit.Reader(laReader, limitBucket)
 				raReader = ratelimit.Reader(raReader, limitBucket)
 			}
+			if teeSentWriter != nil {
+				laReader = io.TeeReader(laReader, teeSentWriter)
+			}
+			if teeReceivedWriter != nil {
+				raReader = io.TeeReader(raReader, teeReceivedWriter)
+			}
+
 			go func() {
 				rn, _ := io.Copy(laWriter, raReader)
 				cch <- struct{}{}
@@ -85,6 +98,50 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			}()
 			<-cch
 		}()
+	}
+}
+
+type CloseFunc func() error
+
+var NopCloseFn CloseFunc = func() error { return nil }
+
+type WriteCloser struct {
+	io.Writer
+	cfn CloseFunc
+}
+
+func NewWriteCloser(w io.Writer, cfn CloseFunc) io.WriteCloser {
+	return &WriteCloser{
+		Writer: w,
+		cfn:    cfn,
+	}
+}
+
+func (nwc *WriteCloser) Write(p []byte) (int, error) {
+	return nwc.Writer.Write(p)
+}
+
+func (nwc *WriteCloser) Close() error {
+	if nwc.cfn == nil {
+		return nil
+	}
+	return nwc.cfn()
+}
+
+func openTeePath(path string) (io.WriteCloser, error) {
+	switch path {
+	case "-":
+		return NewWriteCloser(os.Stdout, NopCloseFn), nil
+	case "":
+		return nil, nil
+	default:
+		fm := os.FileMode(0666)
+		if fi, err := os.Lstat(path); err == nil {
+			fm = fi.Mode()
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+		return os.OpenFile(path, os.O_CREATE|os.O_WRONLY, fm)
 	}
 }
 
@@ -114,8 +171,10 @@ func humanSize(n int64) string {
 }
 
 type RootOptions struct {
-	address string
-	proxy   string
+	address     string
+	proxy       string
+	teeSent     string
+	teeReceived string
 
 	version   bool
 	rateLimit string
@@ -136,6 +195,8 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&ops.version, "version", "v", false, "Print the version information.")
 	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "")
 	cmd.Flags().BoolVar(&logBytesAsRawNumber, "raw-bytes", false, "log bytes as raw number")
+	cmd.Flags().StringVar(&ops.teeSent, "tee-sen", "", "tee path of sent data")
+	cmd.Flags().StringVar(&ops.teeReceived, "tee-rec", "", "tee path of received data")
 
 	return cmd
 }
@@ -157,6 +218,19 @@ func (o *RootOptions) Run(cmd *cobra.Command, args []string) (err error) {
 
 	remote := args[0]
 	ports := args[1:]
+
+	if teeReceivedWriter, err = openTeePath(o.teeReceived); err != nil {
+		return
+	} else if teeReceivedWriter != nil {
+		defer teeReceivedWriter.Close()
+	}
+	if o.teeReceived == o.teeSent {
+		teeSentWriter = teeReceivedWriter
+	} else if teeSentWriter, err = openTeePath(o.teeSent); err != nil {
+		return err
+	} else if teeSentWriter != nil {
+		defer teeSentWriter.Close()
+	}
 
 	var wg sync.WaitGroup
 	for _, port := range ports {
