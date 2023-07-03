@@ -20,3 +20,11 @@ pkg: clean
 .PHONY: clean
 clean:
 	@rm -rf bin/*
+
+.PHONY: install
+install:
+	go install -ldflags "${GO_LDFLAGS}" -v ./cmd/tcp-proxy
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(GOPATH)/bin/tcp-proxy
