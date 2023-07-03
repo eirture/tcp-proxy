@@ -21,6 +21,11 @@ import (
 var limitBucket *ratelimit.Bucket
 var (
 	logBytesAsRawNumber bool
+	bufPool             = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 32*1024)
+		},
+	}
 )
 
 var (
@@ -87,12 +92,16 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			}
 
 			go func() {
-				rn, _ := io.Copy(laWriter, raReader)
+				buf := bufPool.Get().([]byte)
+				defer bufPool.Put(buf)
+				rn, _ := io.CopyBuffer(laWriter, raReader, buf)
 				cch <- struct{}{}
 				rch <- rn
 			}()
 			go func() {
-				wn, _ := io.Copy(raWriter, laReader)
+				buf := bufPool.Get().([]byte)
+				defer bufPool.Put(buf)
+				wn, _ := io.CopyBuffer(raWriter, laReader, buf)
 				cch <- struct{}{}
 				sch <- wn
 			}()
