@@ -9,7 +9,7 @@ GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.BuildDate=$(BUILD_DATE) 
 .PHONY: build
 build:
 	@mkdir -p bin
-	go build -ldflags "${GO_LDFLAGS}" -v -o bin/ ./cmd/tcp-proxy
+	GOOS=${GOOS} GOARCH=${GOARCH} go build -ldflags "${GO_LDFLAGS}" -v -o bin/ ./cmd/tcp-proxy
 
 .PHONY: pkg
 pkg: clean
@@ -28,3 +28,12 @@ install:
 .PHONY: uninstall
 uninstall:
 	rm -f $(GOPATH)/bin/tcp-proxy
+
+linux: GOOS=linux
+linux: GOARCH=amd64
+linux: build
+
+.PHONY: docker
+docker: linux
+	docker build -t eirture/tcp-proxy:$(shell date +%Y%m%d) .
+
