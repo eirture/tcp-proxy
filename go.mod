@@ -1,6 +1,6 @@
 module github.com/eirture/tcp-proxy
 
-go 1.17
+go 1.20
 
 require (
 	github.com/docker/go-units v0.5.0
