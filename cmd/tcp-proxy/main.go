@@ -58,19 +58,10 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			}()
 
 			defer conn.Close()
-			var dialer proxy.Dialer
-
-			if proxyAddr == "" {
-				dialer = proxy.FromEnvironment()
-			} else {
-				proxyUrl, err := url.Parse(proxyAddr)
-				if err != nil {
-					log.Errorf("Invalid proxy address. err: %v\n", err)
-				}
-				dialer, err = proxy.FromURL(proxyUrl, proxy.Direct)
-				if err != nil {
-					log.Errorf("error dialing from proxy. %v\n", err)
-				}
+			dialer, err := NewProxyDialer(proxyAddr)
+			if err != nil {
+				log.Errorf("new proxy dialer error: %v\n", err)
+				return
 			}
 			conn2, err := dialer.Dial("tcp", remoteAddr)
 			if err != nil {
@@ -108,6 +99,17 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			<-cch
 		}()
 	}
+}
+
+func NewProxyDialer(proxyURL string) (proxy.Dialer, error) {
+	if proxyURL == "" {
+		return proxy.FromEnvironment(), nil
+	}
+	proxyUrl, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, err
+	}
+	return proxy.FromURL(proxyUrl, proxy.Direct)
 }
 
 type CloseFunc func() error
