@@ -15,7 +15,10 @@ func init() {
 }
 
 var (
-	Direct Dialer = proxy.Direct
+	Direct Dialer = &net.Dialer{
+		Timeout:   DialTimeout,
+		KeepAlive: KeepAliveTime,
+	}
 )
 
 type Dialer interface {
@@ -39,7 +42,7 @@ func (f DialerContextFunc) DialContext(ctx context.Context, network, addr string
 
 func NewDialer(rawURL string, forward Dialer) (Dialer, error) {
 	if rawURL == "" {
-		return proxy.FromEnvironment(), nil
+		return proxy.FromEnvironmentUsing(forward), nil
 	}
 	proxyUrl, err := url.Parse(rawURL)
 	if err != nil {

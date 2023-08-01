@@ -7,14 +7,23 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/eirture/tcp-proxy/pkg/build"
 	"golang.org/x/net/context"
 )
 
+var (
+	KeepAliveTime = 180 * time.Second
+	// DialTimeout is the timeout of dial.
+	DialTimeout    = 5 * time.Second
+	ConnectTimeout = 5 * time.Second
+)
+
 type HTTPOptions struct {
 	UserAgent string
 	User      *url.Userinfo
+	Timeout   time.Duration
 }
 
 type HTTPDialer struct {
@@ -55,6 +64,12 @@ func (d *HTTPDialer) DialContext(ctx context.Context, network, addr string) (con
 		}
 	}()
 
+	timeout := d.options.Timeout
+	if timeout <= 0 {
+		timeout = ConnectTimeout
+	}
+	conn.SetDeadline(time.Now().Add(timeout))
+	defer conn.SetDeadline(time.Time{})
 	req := &http.Request{
 		Method:     http.MethodConnect,
 		URL:        &url.URL{Host: addr},
