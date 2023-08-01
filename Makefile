@@ -3,7 +3,7 @@ KODO_VERSION ?= unknown
 BUILD_DATE ?= $(shell date +%Y-%m-%d)
 
 GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.Version=$(KODO_VERSION) $(GO_LDFLAGS)
-GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.BuildDate=$(BUILD_DATE) $(GO_LDFLAGS)
+GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.Date=$(BUILD_DATE) $(GO_LDFLAGS)
 
 
 .PHONY: build

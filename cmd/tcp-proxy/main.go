@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -13,9 +12,9 @@ import (
 	"github.com/docker/go-units"
 	"github.com/eirture/tcp-proxy/pkg/build"
 	"github.com/eirture/tcp-proxy/pkg/log"
+	"github.com/eirture/tcp-proxy/pkg/proxy"
 	"github.com/juju/ratelimit"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/proxy"
 )
 
 var limitBucket *ratelimit.Bucket
@@ -58,7 +57,7 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			}()
 
 			defer conn.Close()
-			dialer, err := NewProxyDialer(proxyAddr)
+			dialer, err := proxy.NewDialer(proxyAddr, proxy.Direct)
 			if err != nil {
 				log.Errorf("new proxy dialer error: %v\n", err)
 				return
@@ -99,17 +98,6 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			<-cch
 		}()
 	}
-}
-
-func NewProxyDialer(proxyURL string) (proxy.Dialer, error) {
-	if proxyURL == "" {
-		return proxy.FromEnvironment(), nil
-	}
-	proxyUrl, err := url.Parse(proxyURL)
-	if err != nil {
-		return nil, err
-	}
-	return proxy.FromURL(proxyUrl, proxy.Direct)
 }
 
 type CloseFunc func() error

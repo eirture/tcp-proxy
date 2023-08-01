@@ -1,12 +1,19 @@
 package build
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 var (
-	Version   string
-	BuildDate string
+	Version string
+	Date    string = time.Now().Format("2006-01-02")
 )
 
 func PrintVersion() {
-	fmt.Printf("Version: %s - (%s)\n", Version, BuildDate)
+	fmt.Printf("Version:%s\n", VersionWithDate())
+}
+
+func VersionWithDate() string {
+	return fmt.Sprintf("%s - (%s)", Version, Date)
 }
