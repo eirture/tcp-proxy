@@ -50,8 +50,6 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			rch := make(chan int64, 1) // receive
 			sch := make(chan int64, 1) // send
 			defer close(cch)
-			defer close(rch)
-			defer close(sch)
 			defer func() {
 				log.Infof("Connection done %s: ↑%s ↓%s", conn.RemoteAddr(), formatBytes(<-sch), formatBytes(<-rch))
 			}()
@@ -60,14 +58,19 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			dialer, err := proxy.NewDialer(proxyAddr, proxy.Direct)
 			if err != nil {
 				log.Errorf("new proxy dialer error: %v\n", err)
+				close(sch)
+				close(rch)
 				return
 			}
 			conn2, err := dialer.Dial("tcp", remoteAddr)
 			if err != nil {
-				log.Errorln("error dialing remote addr", err)
+				log.Errorln("error dialing remote addr:", err)
+				close(sch)
+				close(rch)
 				return
 			}
 			defer conn2.Close()
+
 			var laReader, raReader io.Reader = conn, conn2
 			var laWriter, raWriter io.Writer = conn, conn2
 			if limitBucket != nil {
