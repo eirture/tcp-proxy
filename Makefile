@@ -1,8 +1,8 @@
 
-KODO_VERSION ?= unknown
+VERSION ?= unknown
 BUILD_DATE ?= $(shell date +%Y-%m-%d)
 
-GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.Version=$(KODO_VERSION) $(GO_LDFLAGS)
+GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.Version=$(VERSION) $(GO_LDFLAGS)
 GO_LDFLAGS := -X github.com/eirture/tcp-proxy/pkg/build.Date=$(BUILD_DATE) $(GO_LDFLAGS)
 
 
@@ -13,9 +13,9 @@ build:
 
 .PHONY: pkg
 pkg: clean
-	make build GOOS=darwin && cd bin/ && zip tcp-proxy-${KODO_VERSION}-darwin-amd64.zip tcp-proxy
+	make build GOOS=darwin && cd bin/ && zip tcp-proxy-${VERSION}-darwin-amd64.zip tcp-proxy
 	cd ../
-	make build GOOS=linux && cd bin/ && tar zcf tcp-proxy-${KODO_VERSION}-linux-amd64.tgz tcp-proxy
+	make build GOOS=linux && cd bin/ && tar zcf tcp-proxy-${VERSION}-linux-amd64.tgz tcp-proxy
 
 .PHONY: clean
 clean:
