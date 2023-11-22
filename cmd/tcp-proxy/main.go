@@ -192,8 +192,8 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&ops.address, "address", "127.0.0.1", "Addresses to listen on.")
 	cmd.Flags().StringVarP(&ops.proxy, "proxy", "x", "", "Use the specified proxy (format: [protocol://]host[:port]).")
 	cmd.Flags().BoolVarP(&ops.version, "version", "v", false, "Print the version information.")
-	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "")
-	cmd.Flags().BoolVar(&logBytesAsRawNumber, "raw-bytes", false, "log bytes as raw number")
+	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "Set the send and receive rate limit to n per second. eg: 1MB")
+	cmd.Flags().BoolVar(&logBytesAsRawNumber, "raw-bytes", false, "Log bytes as raw number")
 	cmd.Flags().StringVar(&ops.teeSent, "tee-sen", "", "tee path of sent data")
 	cmd.Flags().StringVar(&ops.teeReceived, "tee-rec", "", "tee path of received data")
 
