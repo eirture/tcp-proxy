@@ -46,6 +46,16 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			continue
 		}
 		go func() {
+			cch := make(chan struct{}, 2)
+			rch := make(chan int64, 1) // receive
+			sch := make(chan int64, 1) // send
+			defer func() {
+				log.Infof("Connection done %s: ↑%s ↓%s", conn.RemoteAddr(), formatBytes(<-sch), formatBytes(<-rch))
+			}()
+			defer close(cch)
+			defer close(sch)
+			defer close(rch)
+
 			defer conn.Close()
 			dialer, err := proxy.NewDialer(proxyAddr, proxy.Direct)
 			if err != nil {
@@ -70,16 +80,6 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			if teeReceivedWriter != nil {
 				raReader = io.TeeReader(raReader, teeReceivedWriter)
 			}
-
-			cch := make(chan struct{}, 2)
-			rch := make(chan int64, 1) // receive
-			sch := make(chan int64, 1) // send
-			defer close(cch)
-			defer close(sch)
-			defer close(rch)
-			defer func() {
-				log.Infof("Connection done %s: ↑%s ↓%s", conn.RemoteAddr(), formatBytes(<-sch), formatBytes(<-rch))
-			}()
 
 			go func() {
 				buf := bufPool.Get().([]byte)
