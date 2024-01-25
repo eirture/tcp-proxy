@@ -22,7 +22,8 @@ var (
 	logBytesAsRawNumber bool
 	bufPool             = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 32*1024)
+			buf := make([]byte, 32*1024)
+			return &buf
 		},
 	}
 )
@@ -82,15 +83,17 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 			}
 
 			go func() {
-				buf := bufPool.Get().([]byte)
-				defer bufPool.Put(buf)
+				bufp := bufPool.Get().(*[]byte)
+				buf := *bufp
+				defer bufPool.Put(bufp)
 				rn, _ := io.CopyBuffer(laWriter, raReader, buf)
 				cch <- struct{}{}
 				rch <- rn
 			}()
 			go func() {
-				buf := bufPool.Get().([]byte)
-				defer bufPool.Put(buf)
+				bufp := bufPool.Get().(*[]byte)
+				buf := *bufp
+				defer bufPool.Put(bufp)
 				wn, _ := io.CopyBuffer(raWriter, laReader, buf)
 				cch <- struct{}{}
 				sch <- wn
