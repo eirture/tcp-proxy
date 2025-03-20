@@ -21,7 +21,7 @@ var limitBucket *ratelimit.Bucket
 var (
 	logBytesAsRawNumber bool
 	bufPool             = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			buf := make([]byte, 32*1024)
 			return &buf
 		},
