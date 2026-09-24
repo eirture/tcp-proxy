@@ -3,6 +3,7 @@ package proxy
 import (
 	"net"
 	"net/url"
+	"strings"
 
 	"golang.org/x/net/context"
 	"golang.org/x/net/proxy"
@@ -43,6 +44,9 @@ func (f DialerContextFunc) DialContext(ctx context.Context, network, addr string
 func NewDialer(rawURL string, forward Dialer) (Dialer, error) {
 	if rawURL == "" {
 		return proxy.FromEnvironmentUsing(forward), nil
+	}
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "http://" + rawURL
 	}
 	proxyUrl, err := url.Parse(rawURL)
 	if err != nil {

@@ -61,10 +61,11 @@ Listen on all interfaces instead of only `127.0.0.1`:
 $ tcp-proxy 192.168.1.2 8080:80 --address 0.0.0.0
 ```
 
-Connect to the remote host through a proxy (`-x`/`--proxy`). Supported protocols are `http`, `socks5` and `socks5h`, and credentials can be given as `protocol://user:password@host:port`. If `--proxy` is not set, the `ALL_PROXY` (and `NO_PROXY`) environment variables are used.
+Connect to the remote host through a proxy (`-x`/`--proxy`). Supported protocols are `http`, `socks5` and `socks5h` (`http` is used when the protocol is omitted), and credentials can be given as `protocol://user:password@host:port`. If `--proxy` is not set, the `ALL_PROXY` (and `NO_PROXY`) environment variables are used.
 
 ```sh
 $ tcp-proxy 192.168.1.2 8080:80 -x socks5://127.0.0.1:1080
+$ tcp-proxy 192.168.1.2 8080:80 -x 127.0.0.1:8080  # same as http://127.0.0.1:8080
 $ tcp-proxy 192.168.1.2 8080:80 --proxy http://user:pass@127.0.0.1:8080
 ```
 
