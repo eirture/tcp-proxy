@@ -23,7 +23,9 @@ Flags:
       --address string      Addresses to listen on. (default "127.0.0.1")
   -h, --help                help for tcp-proxy
   -x, --proxy string        Use the specified proxy (format: [protocol://]host[:port]).
-      --rate-limit string   Set the send and receive rate limit to n per second. eg: 1MB
+      --rate-down string    Set the remote-to-client rate limit per second. eg: 1MB
+      --rate-limit string   Set the shared upload and download rate limit per second. eg: 1MB
+      --rate-up string      Set the client-to-remote rate limit per second. eg: 1MB
       --raw-bytes           Log bytes as raw number
       --tee-rec string      tee path of received data
       --tee-sen string      tee path of sent data
@@ -69,11 +71,19 @@ $ tcp-proxy 192.168.1.2 8080:80 -x 127.0.0.1:8080  # same as http://127.0.0.1:80
 $ tcp-proxy 192.168.1.2 8080:80 --proxy http://user:pass@127.0.0.1:8080
 ```
 
-Limit the transfer rate (shared by sending and receiving), using human-readable sizes such as `500KB` or `1MB`:
+Limit the transfer rate using human-readable sizes such as `500KB` or `1MB`. The existing `--rate-limit` is a shared total for both directions:
 
 ```sh
 $ tcp-proxy 192.168.1.2 8080:80 --rate-limit 1MB
 ```
+
+To limit upload (client → remote) and download (remote → client) separately, use the directional flags. These limits are shared across all connections and port mappings, not applied per connection:
+
+```sh
+$ tcp-proxy 192.168.1.2 8080:80 --rate-up 500KB --rate-down 1MB
+```
+
+Either directional flag can be used alone. When combined with `--rate-limit`, both the shared total and the relevant directional limit apply.
 
 Log the transferred byte counts of each connection as raw numbers instead of human-readable sizes:
 

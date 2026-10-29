@@ -17,7 +17,51 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var limitBucket *ratelimit.Bucket
+var limits rateLimits
+
+type rateLimits struct {
+	shared   *ratelimit.Bucket
+	upload   *ratelimit.Bucket
+	download *ratelimit.Bucket
+}
+
+func newRateLimits(shared, upload, download string) (rateLimits, error) {
+	var limits rateLimits
+	for _, limit := range []struct {
+		name   string
+		value  string
+		bucket **ratelimit.Bucket
+	}{
+		{"rate-limit", shared, &limits.shared},
+		{"rate-up", upload, &limits.upload},
+		{"rate-down", download, &limits.download},
+	} {
+		if limit.value == "" {
+			continue
+		}
+		bps, err := units.FromHumanSize(limit.value)
+		if err != nil || bps <= 0 {
+			return rateLimits{}, fmt.Errorf("invalid --%s %q: expected a positive size such as 500KB or 1MB", limit.name, limit.value)
+		}
+		*limit.bucket = ratelimit.NewBucketWithRate(float64(bps), bps)
+	}
+	return limits, nil
+}
+
+func (l rateLimits) readers(upload, download io.Reader) (io.Reader, io.Reader) {
+	if l.shared != nil {
+		upload = ratelimit.Reader(upload, l.shared)
+		download = ratelimit.Reader(download, l.shared)
+	}
+	if l.upload != nil {
+		upload = ratelimit.Reader(upload, l.upload)
+	}
+	if l.download != nil {
+		download = ratelimit.Reader(download, l.download)
+	}
+	return upload, download
+}
+
 var (
 	logBytesAsRawNumber bool
 	bufPool             = sync.Pool{
@@ -69,12 +113,8 @@ func listen(localAddr, remoteAddr, proxyAddr string) (err error) {
 				return
 			}
 			defer conn2.Close()
-			var laReader, raReader io.Reader = conn, conn2
+			laReader, raReader := limits.readers(conn, conn2)
 			var laWriter, raWriter io.Writer = conn, conn2
-			if limitBucket != nil {
-				laReader = ratelimit.Reader(laReader, limitBucket)
-				raReader = ratelimit.Reader(raReader, limitBucket)
-			}
 			if teeSentWriter != nil {
 				laReader = io.TeeReader(laReader, teeSentWriter)
 			}
@@ -178,8 +218,10 @@ type RootOptions struct {
 	teeSent     string
 	teeReceived string
 
-	version   bool
-	rateLimit string
+	version           bool
+	rateLimit         string
+	uploadRateLimit   string
+	downloadRateLimit string
 }
 
 func NewRootCmd() *cobra.Command {
@@ -195,7 +237,9 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&ops.address, "address", "127.0.0.1", "Addresses to listen on.")
 	cmd.Flags().StringVarP(&ops.proxy, "proxy", "x", "", "Use the specified proxy (format: [protocol://]host[:port]).")
 	cmd.Flags().BoolVarP(&ops.version, "version", "v", false, "Print the version information.")
-	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "Set the send and receive rate limit to n per second. eg: 1MB")
+	cmd.Flags().StringVar(&ops.rateLimit, "rate-limit", "", "Set the shared upload and download rate limit per second. eg: 1MB")
+	cmd.Flags().StringVar(&ops.uploadRateLimit, "rate-up", "", "Set the client-to-remote rate limit per second. eg: 1MB")
+	cmd.Flags().StringVar(&ops.downloadRateLimit, "rate-down", "", "Set the remote-to-client rate limit per second. eg: 1MB")
 	cmd.Flags().BoolVar(&logBytesAsRawNumber, "raw-bytes", false, "Log bytes as raw number")
 	cmd.Flags().StringVar(&ops.teeSent, "tee-sen", "", "tee path of sent data")
 	cmd.Flags().StringVar(&ops.teeReceived, "tee-rec", "", "tee path of received data")
@@ -214,8 +258,9 @@ func (o *RootOptions) Run(cmd *cobra.Command, args []string) (err error) {
 		return fmt.Errorf("requires at least 2 arg(s), only received %d", len(args))
 	}
 
-	if bps, err := units.FromHumanSize(o.rateLimit); err == nil {
-		limitBucket = ratelimit.NewBucketWithRate(float64(bps), bps)
+	limits, err = newRateLimits(o.rateLimit, o.uploadRateLimit, o.downloadRateLimit)
+	if err != nil {
+		return err
 	}
 
 	remote := args[0]
